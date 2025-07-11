@@ -4,6 +4,7 @@
   "description": "A web application for tracking workout sessions",
   "main": "server/index.js",
   "scripts": {
+    "start": "npm run dev",
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "cd server && npm run dev",
     "client": "cd client && npm start",

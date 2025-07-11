@@ -6,9 +6,9 @@ const Login: React.FC = () => {
   const handleGoogleLogin = async () => {
     try {
       await signInWithGoogle();
-    } catch (error) {
+    } catch (error: any) {
       console.error('ログインエラー:', error);
-      alert('ログインに失敗しました');
+      alert(error.message || 'ログインに失敗しました');
     }
   };
 

@@ -1,16 +1,10 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import { getFirebaseConfig } from './utils/firebaseConfigValidator';
 
 // Firebase設定
-const firebaseConfig = {
-  apiKey: "AIzaSyA-0sTKhrtRRSfSRKb5cXyGbIH02IwygXI",
-  authDomain: "my-training-8d8a9.firebaseapp.com",
-  projectId: "my-training-8d8a9",
-  storageBucket: "my-training-8d8a9.appspot.com",
-  messagingSenderId: "1081225191946",
-  appId: "1:1081225191946:web:your-app-id"
-};
+const firebaseConfig = getFirebaseConfig();
 
 // Firebase初期化
 const app = initializeApp(firebaseConfig);
@@ -23,15 +17,30 @@ export const db = getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.addScope('https://www.googleapis.com/auth/userinfo.email');
 googleProvider.addScope('https://www.googleapis.com/auth/userinfo.profile');
+googleProvider.setCustomParameters({
+  prompt: 'select_account'
+});
 
 // 認証関数
 export const signInWithGoogle = async () => {
   try {
     const result = await signInWithPopup(auth, googleProvider);
+    console.log('✅ Google認証成功:', result.user.email);
     return result.user;
-  } catch (error) {
-    console.error('Google認証エラー:', error);
-    throw error;
+  } catch (error: any) {
+    console.error('❌ Google認証エラー:', error);
+    
+    // エラーメッセージの日本語化
+    let errorMessage = '認証に失敗しました';
+    if (error.code === 'auth/popup-closed-by-user') {
+      errorMessage = 'ログインがキャンセルされました';
+    } else if (error.code === 'auth/popup-blocked') {
+      errorMessage = 'ポップアップがブロックされました。ブラウザの設定を確認してください';
+    } else if (error.code === 'auth/network-request-failed') {
+      errorMessage = 'ネットワークエラーが発生しました';
+    }
+    
+    throw new Error(errorMessage);
   }
 };
 

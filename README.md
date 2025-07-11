@@ -54,7 +54,8 @@ cd ..
 3. Firebase設定
 - Firebase Consoleでプロジェクトを作成
 - AuthenticationでGoogle OAuthを有効化
-- `client/src/firebase.ts`の設定を更新
+- プロジェクト設定からWebアプリの設定値を取得
+- `.env`ファイルに正しい設定値を設定
 
 4. 環境変数の設定
 ```bash

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User } from 'firebase/auth';
-import { signOutUser } from '../firebase';
+import { useAuth } from '../contexts/AuthContext';
 import { LogOut, User as UserIcon, ChevronDown } from 'lucide-react';
 
 interface UserProfileProps {
@@ -9,10 +9,11 @@ interface UserProfileProps {
 
 const UserProfile: React.FC<UserProfileProps> = ({ user }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const { signOut } = useAuth();
 
   const handleSignOut = async () => {
     try {
-      await signOutUser();
+      await signOut();
     } catch (error) {
       console.error('サインアウトエラー:', error);
       alert('サインアウトに失敗しました');
