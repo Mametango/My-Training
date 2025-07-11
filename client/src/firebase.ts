@@ -1,10 +1,16 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-import { getFirebaseConfig } from './utils/firebaseConfigValidator';
 
-// Firebase設定
-const firebaseConfig = getFirebaseConfig();
+// Firebase設定（本番環境用）
+const firebaseConfig = {
+  apiKey: "AIzaSyA-0sTKhrtRRSfSRKb5cXyGbIH02IwygXI",
+  authDomain: "my-routine-app-a0708.firebaseapp.com",
+  projectId: "my-routine-app-a0708",
+  storageBucket: "my-routine-app-a0708.appspot.com",
+  messagingSenderId: "1081225191946",
+  appId: "1:1081225191946:web:your-app-id"
+};
 
 // Firebase初期化
 const app = initializeApp(firebaseConfig);
