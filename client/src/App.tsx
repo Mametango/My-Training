@@ -1,148 +1,244 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import CalendarComponent from './components/Calendar';
-import WorkoutForm from './components/WorkoutForm';
 import WorkoutList from './components/WorkoutList';
-import Statistics from './components/Statistics';
 import Login from './components/Login';
 import UserProfile from './components/UserProfile';
-import { Workout, MuscleGroup, WorkoutFormData, Statistics as StatsType } from './types';
-import { workoutAPI, muscleGroupAPI, statisticsAPI } from './services/api';
-import { Plus, BarChart3 } from 'lucide-react';
+import SettingsModal from './components/SettingsModal';
+import FriendsList from './components/FriendsList';
+import FriendsFeed from './components/FriendsFeed';
+import { Workout, WorkoutFormData, MuscleGroup, Exercise } from './types';
+import { workoutAPI, muscleGroupAPI, exerciseAPI } from './services/api';
 import { useAuth } from './contexts/AuthContext';
+import { useLanguage } from './contexts/LanguageContext';
+import { getJSTDateString, getMonthDateRange } from './utils/dateUtils';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import Help from './components/Help';
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
   const { user, loading: authLoading } = useAuth();
+  const { t, language } = useLanguage();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [workouts, setWorkouts] = useState<Workout[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [dateLoading, setDateLoading] = useState(false);
+  const [monthlyWorkouts, setMonthlyWorkouts] = useState<Workout[]>([]);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isFriendsListOpen, setIsFriendsListOpen] = useState(false);
+  const [isFriendsFeedOpen, setIsFriendsFeedOpen] = useState(false);
   const [muscleGroups, setMuscleGroups] = useState<MuscleGroup[]>([]);
-  const [statistics, setStatistics] = useState<StatsType[]>([]);
-  const [showForm, setShowForm] = useState(false);
-  const [showStats, setShowStats] = useState(false);
-  const [editingWorkout, setEditingWorkout] = useState<Workout | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [exercises, setExercises] = useState<Exercise[]>([]);
+  const initialDataFetchedRef = useRef(false);
+  const userRef = useRef<any>(null);
+  const authLoadingRef = useRef(true);
 
-  // Calculate date range for statistics (current month)
-  const startDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1).toISOString().split('T')[0];
-  const endDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0).toISOString().split('T')[0];
-
+  // タイトルと言語を設定
   useEffect(() => {
-    fetchMuscleGroups();
-    fetchStatistics();
-  }, []);
+    document.title = t('app.title');
+    document.documentElement.lang = language;
+  }, [t, language]);
 
-  const fetchMuscleGroups = async () => {
-    try {
-      const response = await muscleGroupAPI.getAll();
-      setMuscleGroups(response.data);
-    } catch (error) {
-      console.error('Failed to fetch muscle groups:', error);
-    }
-  };
 
-  const fetchWorkouts = useCallback(async () => {
-    try {
-      const dateString = selectedDate.toISOString().split('T')[0];
-      const response = await workoutAPI.getAll(dateString);
-      setWorkouts(response.data);
-    } catch (error) {
-      console.error('Failed to fetch workouts:', error);
-    } finally {
+
+
+
+  // 認証状態の変更を追跡し、認証完了時に初期データを取得
+  useEffect(() => {
+    userRef.current = user;
+    authLoadingRef.current = authLoading;
+    
+    // 認証が完了したら初期データを取得（一度だけ）
+    if (user && !authLoading && !initialDataFetchedRef.current) {
+      initialDataFetchedRef.current = true;
+      
+      // 非同期で初期データを取得
+      const fetchInitialData = async () => {
+        setLoading(true);
+        
+        try {
+          // タイムアウト付きのPromise.all
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Initial data fetch timeout')), 5000);
+          });
+          
+          const dataPromise = Promise.all([
+            muscleGroupAPI.getAll(),
+            exerciseAPI.getAll()
+          ]);
+          
+          const [muscleGroupsData, exercisesData] = await Promise.race([dataPromise, timeoutPromise]) as any;
+          
+          setMuscleGroups(muscleGroupsData.data || []);
+          setExercises(exercisesData.data || []);
+        } catch (error) {
+          console.error('Failed to fetch initial data:', error);
+          setMuscleGroups([]);
+          setExercises([]);
+        } finally {
+          setLoading(false);
+        }
+      };
+      
+      // 即座に実行
+      fetchInitialData();
+    } else if (!user && !authLoading) {
       setLoading(false);
+      initialDataFetchedRef.current = false;
     }
-  }, [selectedDate]);
+  }, [user, authLoading]);
 
+
+
+
+
+  // selectedDateが変わるたびにその日の記録と月次データを取得
   useEffect(() => {
-    fetchWorkouts();
-  }, [fetchWorkouts]);
-
-  const fetchStatistics = async () => {
-    try {
-      const response = await statisticsAPI.get();
-      setStatistics(response.data);
-    } catch (error) {
-      console.error('Failed to fetch statistics:', error);
+    if (user && !authLoading) {
+      const fetchDailyWorkouts = async () => {
+        try {
+          setDateLoading(true);
+          const dateString = getJSTDateString(selectedDate);
+          const response = await workoutAPI.getAll(dateString);
+          setWorkouts(response.data);
+        } catch (error) {
+          console.error('Failed to fetch workouts:', error);
+          setWorkouts([]);
+        } finally {
+          setDateLoading(false);
+        }
+      };
+      
+      const fetchMonthlyData = async () => {
+        const dateRange = getMonthDateRange(selectedDate);
+        const { start, end } = dateRange;
+        try {
+          const response = await workoutAPI.getByDateRange(start, end);
+          setMonthlyWorkouts(response.data);
+        } catch (error) {
+          console.error('Failed to fetch monthly workouts:', error);
+          setMonthlyWorkouts([]);
+        }
+      };
+      
+      // 両方のデータを並行取得
+      Promise.allSettled([fetchDailyWorkouts(), fetchMonthlyData()]);
     }
-  };
+  }, [user, authLoading, selectedDate]);
+
+
+
 
   const handleDateChange = (value: any) => {
     if (value instanceof Date) {
-      console.log('Calendar date selected:', value.toISOString().split('T')[0]);
       setSelectedDate(value);
-      // Automatically show form when a date is selected
-      setShowForm(true);
-      setEditingWorkout(null);
-      // Reset form to ensure it uses the new selected date
     }
   };
 
   const handleAddWorkout = () => {
-    setShowForm(true);
-    setEditingWorkout(null);
+    // WorkoutListで直接追加できるようにする
   };
 
-  const handleEditWorkout = (workout: Workout) => {
-    setEditingWorkout(workout);
-    setShowForm(true);
+  const handleEditWorkout = async (workout: Workout) => {
+    try {
+      if (workout.id) {
+        // WorkoutFormData型に変換
+        const dataToSubmit = {
+          id: workout.id,
+          date: workout.date,
+          muscle_group: workout.muscle_group,
+          exercise_name: workout.exercise_name,
+          reps: typeof workout.reps === 'number' ? workout.reps : '',
+          weight: typeof workout.weight === 'number' ? workout.weight : '',
+          notes: workout.notes || '',
+        } as WorkoutFormData;
+        await workoutAPI.update(workout.id, dataToSubmit);
+        // 編集時は当日のデータのみ更新
+        const dateString = getJSTDateString(selectedDate);
+        const response = await workoutAPI.getAll(dateString);
+        setWorkouts(response.data);
+      }
+          } catch (error) {
+        alert(t('workout.edit.failed'));
+      }
   };
 
-  const handleDeleteWorkout = async (id: number) => {
-    if (window.confirm('このトレーニング記録を削除しますか？')) {
+  // id型をstringに
+  const handleDeleteWorkout = async (id: string, confirm: boolean = true) => {
+    if (!confirm || window.confirm(t('workout.delete.confirm'))) {
       try {
         await workoutAPI.delete(id);
-        fetchWorkouts();
-        fetchStatistics();
+        // 削除時は当日のデータと月全体のデータを更新
+        const dateString = getJSTDateString(selectedDate);
+        const response = await workoutAPI.getAll(dateString);
+        setWorkouts(response.data);
+        
+        const dateRange = getMonthDateRange(selectedDate);
+        const monthlyResponse = await workoutAPI.getByDateRange(dateRange.start, dateRange.end);
+        setMonthlyWorkouts(monthlyResponse.data);
       } catch (error) {
-        console.error('Failed to delete workout:', error);
-        alert('削除に失敗しました');
+        alert(t('workout.delete.failed'));
       }
     }
   };
 
   const handleSubmitWorkout = async (workoutData: WorkoutFormData) => {
     try {
-      // Always use selected date for new workouts, ignore form date
-      const dataToSubmit = editingWorkout ? workoutData : {
+      // workoutDataの日付をそのまま使用（selectedDateで上書きしない）
+      const dataToSubmit = {
         ...workoutData,
-        date: selectedDate.toISOString().split('T')[0]
+        // date: getJSTDateString(selectedDate), // この行を削除
       };
 
-      console.log('Submitting workout with date:', dataToSubmit.date, 'selectedDate:', selectedDate.toISOString().split('T')[0]);
-
-      if (editingWorkout) {
-        await workoutAPI.update(editingWorkout.id!, dataToSubmit);
+      if (workoutData.id) {
+        await workoutAPI.update(workoutData.id, dataToSubmit);
       } else {
         await workoutAPI.create(dataToSubmit);
       }
-      setShowForm(false);
-      setEditingWorkout(null);
-      fetchWorkouts();
-      fetchStatistics();
+
+      // 新規作成・更新時は当日のデータと月全体のデータを更新
+      const dateString = getJSTDateString(selectedDate);
+      const response = await workoutAPI.getAll(dateString);
+      setWorkouts(response.data);
+      
+      const dateRange = getMonthDateRange(selectedDate);
+      const monthlyResponse = await workoutAPI.getByDateRange(dateRange.start, dateRange.end);
+      setMonthlyWorkouts(monthlyResponse.data);
     } catch (error) {
-      console.error('Failed to save workout:', error);
-      alert('保存に失敗しました');
+      console.error('Workout submission error:', error);
+      alert('記録の保存に失敗しました: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
   };
 
-  const handleCancelForm = () => {
-    setShowForm(false);
-    setEditingWorkout(null);
+  // タイトルクリックで今日の日付に移動
+  const handleTitleClick = () => {
+    const today = new Date();
+    setSelectedDate(today);
   };
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('ja-JP', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      weekday: 'long',
-    });
+  // 設定モーダルを開く
+  const handleOpenSettings = () => {
+    setIsSettingsOpen(true);
   };
+
+  // 友達一覧を開く
+  const handleOpenFriendsList = () => {
+    setIsFriendsListOpen(true);
+  };
+
+  // 友達フィードを開く
+  const handleOpenFriendsFeed = () => {
+    setIsFriendsFeedOpen(true);
+  };
+
+  // 未使用のformatDate関数を削除
+
+  // Debug panel removed
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">認証情報を読み込み中...</p>
+          <p className="mt-4 text-gray-600 dark:text-gray-300">{t('auth.loading')}</p>
         </div>
       </div>
     );
@@ -154,101 +250,116 @@ const App: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">読み込み中...</p>
+          <p className="mt-4 text-gray-600 dark:text-gray-300">{t('loading')}</p>
+          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">データを読み込み中...</p>
+          <button 
+            onClick={() => {
+              setLoading(false);
+              if (user) {
+                setLoading(true);
+                initialDataFetchedRef.current = false;
+                // ページをリロードして初期化
+                window.location.reload();
+              }
+            }}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+          >
+            手動で更新
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm border-b">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <h1 className="text-2xl font-bold text-gray-900">トレーニング記録</h1>
+            <div>
+              <h1 
+                className="text-2xl font-bold text-gray-900 dark:text-white cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                onClick={handleTitleClick}
+                title={t('app.title.tooltip')}
+              >
+                {t('app.title')}
+              </h1>
+            </div>
             <div className="flex items-center gap-4">
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setShowStats(!showStats)}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
-                >
-                  <BarChart3 size={16} />
-                  統計
-                </button>
-                <button
-                  onClick={handleAddWorkout}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                >
-                  <Plus size={16} />
-                  記録追加
-                </button>
-              </div>
-              <UserProfile user={user} />
+              <UserProfile 
+                user={user} 
+                onOpenFriendsList={handleOpenFriendsList}
+                onOpenFriendsFeed={handleOpenFriendsFeed}
+              />
             </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-6">
-          <h2 className="text-xl font-semibold text-gray-800">
-            📅 {formatDate(selectedDate)}
-          </h2>
-          {showForm && !editingWorkout && (
-            <p className="text-sm text-blue-600 mt-1">
-              この日付に新しいトレーニング記録を追加します
-            </p>
-          )}
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Calendar */}
-          <div className="lg:col-span-1">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Calendar 上部配置 */}
+        <div className="mb-8 flex justify-center">
+          <div className="w-full max-w-2xl">
             <CalendarComponent
               selectedDate={selectedDate}
-              workouts={workouts}
+              workouts={monthlyWorkouts}
               onDateChange={handleDateChange}
             />
           </div>
+        </div>
 
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
-            {showForm ? (
-              <WorkoutForm
-                selectedDate={selectedDate}
-                onSubmit={handleSubmitWorkout}
-                onCancel={handleCancelForm}
-                initialData={editingWorkout ? {
-                  date: editingWorkout.date,
-                  muscle_group: editingWorkout.muscle_group,
-                  exercise_name: editingWorkout.exercise_name,
-                  reps: editingWorkout.reps || 10,
-                  weight: editingWorkout.weight || 0,
-                  notes: editingWorkout.notes || ''
-                } : undefined}
-                isEditing={!!editingWorkout}
-              />
-            ) : showStats ? (
-              <Statistics
-                statistics={statistics}
-                startDate={startDate}
-                endDate={endDate}
-              />
-            ) : (
-              <WorkoutList
-                workouts={workouts}
-                onEdit={handleEditWorkout}
-                onDelete={handleDeleteWorkout}
-              />
-            )}
+        {/* WorkoutList 下部配置 */}
+        <div className="flex justify-center">
+          <div className="w-full max-w-4xl">
+            <WorkoutList
+              workouts={workouts}
+              onEdit={handleEditWorkout}
+              onDelete={handleDeleteWorkout}
+              onAddWorkout={handleAddWorkout}
+              onSubmitWorkout={handleSubmitWorkout}
+              selectedDate={selectedDate}
+              onOpenSettings={handleOpenSettings}
+              muscleGroups={muscleGroups}
+              exercises={exercises}
+              loading={dateLoading}
+            />
           </div>
         </div>
 
       </main>
+
+      {/* 設定モーダル */}
+      <SettingsModal 
+        isOpen={isSettingsOpen} 
+        onClose={() => setIsSettingsOpen(false)} 
+      />
+
+      {/* 友達一覧モーダル */}
+      <FriendsList
+        isOpen={isFriendsListOpen}
+        onClose={() => setIsFriendsListOpen(false)}
+      />
+
+      {/* 友達フィードモーダル */}
+      <FriendsFeed
+        isOpen={isFriendsFeedOpen}
+        onClose={() => setIsFriendsFeedOpen(false)}
+      />
     </div>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/help" element={<Help />} />
+        <Route path="/" element={<AppContent />} />
+      </Routes>
+    </Router>
   );
 };
 

@@ -15,9 +15,21 @@ client/dist/
 .env.test.local
 .env.production.local
 
-# Database
-server/database.sqlite
-server/database.sqlite-journal
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
 
 # Logs
 logs
@@ -53,27 +65,10 @@ jspm_packages/
 # dotenv environment variables file
 .env
 
-# IDE files
-.vscode/
-.idea/
-*.swp
-*.swo
+# Server database
+server/training.db
+server/*.db
 
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Firebase
-.firebase/
-firebase-debug.log
-firestore-debug.log
-ui-debug.log
-
-# Temporary files
-*.tmp
-*.temp 
+# Functions
+functions/node_modules/
+functions/.firebase/ 

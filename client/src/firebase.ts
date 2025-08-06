@@ -1,19 +1,30 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
+import { initializeApp, getApps } from 'firebase/app';
+import { 
+  getAuth, 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  signOut, 
+  onAuthStateChanged, 
+  User, 
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updateProfile
+} from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
-// Firebase設定（本番環境用）
+// Firebase設定（正しい設定）
 const firebaseConfig = {
   apiKey: "AIzaSyA-0sTKhrtRRSfSRKb5cXyGbIH02IwygXI",
-  authDomain: "my-routine-app-a0708.firebaseapp.com",
-  projectId: "my-routine-app-a0708",
-  storageBucket: "my-routine-app-a0708.appspot.com",
+  authDomain: "my-training-8d8a9.firebaseapp.com",
+  projectId: "my-training-8d8a9",
+  storageBucket: "my-training-8d8a9.firebasestorage.app",
   messagingSenderId: "1081225191946",
-  appId: "1:1081225191946:web:your-app-id"
+  appId: "1:1081225191946:web:e70ac3a1bf9c77969c75f3",
+  measurementId: "G-3ET0DMDS8T"
 };
 
-// Firebase初期化
-const app = initializeApp(firebaseConfig);
+// Initialize Firebase (My Routineと同じ方式)
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 
 // AuthとFirestoreの初期化
 export const auth = getAuth(app);
@@ -21,32 +32,47 @@ export const db = getFirestore(app);
 
 // Google認証プロバイダー
 export const googleProvider = new GoogleAuthProvider();
-googleProvider.addScope('https://www.googleapis.com/auth/userinfo.email');
-googleProvider.addScope('https://www.googleapis.com/auth/userinfo.profile');
 googleProvider.setCustomParameters({
-  prompt: 'select_account'
+  prompt: 'select_account',
+  // より安定した認証のための追加設定
+  access_type: 'offline'
 });
 
-// 認証関数
+// メール/パスワード認証
+export const signInWithEmail = async (email: string, password: string) => {
+  try {
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    return userCredential.user;
+  } catch (error: any) {
+    throw error;
+  }
+};
+
+// メール/パスワード登録
+export const createUserWithEmail = async (email: string, password: string, username?: string) => {
+  try {
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    
+    // ユーザー名を設定
+    if (username && userCredential.user) {
+      await updateProfile(userCredential.user, {
+        displayName: username
+      });
+    }
+    
+    return userCredential.user;
+  } catch (error: any) {
+    throw error;
+  }
+};
+
+// Google認証（ポップアップのみ）
 export const signInWithGoogle = async () => {
   try {
     const result = await signInWithPopup(auth, googleProvider);
-    console.log('✅ Google認証成功:', result.user.email);
     return result.user;
   } catch (error: any) {
-    console.error('❌ Google認証エラー:', error);
-    
-    // エラーメッセージの日本語化
-    let errorMessage = '認証に失敗しました';
-    if (error.code === 'auth/popup-closed-by-user') {
-      errorMessage = 'ログインがキャンセルされました';
-    } else if (error.code === 'auth/popup-blocked') {
-      errorMessage = 'ポップアップがブロックされました。ブラウザの設定を確認してください';
-    } else if (error.code === 'auth/network-request-failed') {
-      errorMessage = 'ネットワークエラーが発生しました';
-    }
-    
-    throw new Error(errorMessage);
+    throw error;
   }
 };
 
@@ -54,7 +80,6 @@ export const signOutUser = async () => {
   try {
     await signOut(auth);
   } catch (error) {
-    console.error('サインアウトエラー:', error);
     throw error;
   }
 };

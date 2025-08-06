@@ -12,7 +12,7 @@ if %errorlevel% neq 0 (
 
 echo Deploying to Firebase...
 cd ..
-call firebase deploy --only hosting --non-interactive
+call firebase deploy --only hosting
 if %errorlevel% neq 0 (
     echo Deployment failed!
     pause
@@ -20,5 +20,5 @@ if %errorlevel% neq 0 (
 )
 
 echo Deployment completed successfully!
-echo URL: https://my-routine-app-a0708.web.app
+echo URL: https://my-training-8d8a9.web.app
 pause 

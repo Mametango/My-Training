@@ -1,0 +1,20 @@
+{
+  "short_name": "マイトレノート",
+  "name": "マイトレノート - 無料の筋トレ記録アプリ",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#3B82F6",
+  "background_color": "#ffffff",
+  "description": "Googleアカウントで簡単ログイン、カレンダーでトレーニング管理ができる無料の筋トレ記録アプリ。スマホ・PC対応。",
+  "categories": ["health", "fitness", "lifestyle"],
+  "lang": "ja",
+  "orientation": "portrait-primary"
+} 

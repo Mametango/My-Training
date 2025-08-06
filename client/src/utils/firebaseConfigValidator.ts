@@ -12,18 +12,15 @@ export const validateFirebaseConfig = () => {
   const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
   
   if (missingVars.length > 0) {
-    console.error('❌ 不足している環境変数:', missingVars);
     return false;
   }
 
   // appIdの形式チェック
   const appId = process.env.REACT_APP_FIREBASE_APP_ID;
   if (appId === 'your-app-id' || !appId?.includes(':')) {
-    console.error('❌ REACT_APP_FIREBASE_APP_IDが正しく設定されていません');
     return false;
   }
 
-  console.log('✅ Firebase設定が正常です');
   return true;
 };
 

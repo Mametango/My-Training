@@ -1,0 +1,25 @@
+rules_version='2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 筋肉グループは全ユーザーが読み取り可能
+    match /muscleGroups/{document} {
+      allow read: if true;
+      allow write: if false;
+    }
+    // エクササイズは認証済みユーザーのみが自分のデータにアクセス可能
+    match /exercises/{document} {
+      allow read: if request.auth != null && (resource.data.userId == request.auth.uid || !('userId' in resource.data));
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update: if request.auth != null && (resource.data.userId == request.auth.uid || !('userId' in resource.data));
+      allow delete: if request.auth != null && (resource.data.userId == request.auth.uid || !('userId' in resource.data));
+    }
+    // ワークアウトデータは認証済みユーザーのみが自分のデータにアクセス可能
+    match /workouts/{document} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow delete: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+  }
+}

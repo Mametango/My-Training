@@ -2,19 +2,29 @@
   "name": "training-tracker",
   "version": "1.0.0",
   "description": "A web application for tracking workout sessions",
-  "main": "server/index.js",
+  "main": "functions/index.js",
   "scripts": {
     "start": "npm run dev",
-    "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "server": "cd server && npm run dev",
+    "dev": "cd client && npm start",
     "client": "cd client && npm start",
+    "functions": "cd functions && npm run serve",
     "build": "cd client && npm run build",
-    "install-all": "npm install && cd server && npm install && cd ../client && npm install"
+    "deploy": "npm run build && firebase deploy --only hosting",
+    "deploy:all": "npm run build && firebase deploy",
+    "install-all": "npm install && cd client && npm install && cd functions && npm install"
   },
-  "keywords": ["training", "workout", "fitness", "tracker"],
+  "keywords": [
+    "training",
+    "workout",
+    "fitness",
+    "tracker"
+  ],
   "author": "",
   "license": "MIT",
   "devDependencies": {
     "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "firebase": "^11.10.0"
   }
-} 
+}
