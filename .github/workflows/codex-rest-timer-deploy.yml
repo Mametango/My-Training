@@ -33,16 +33,19 @@ jobs:
             text = text.replace(needle, replacement);
           };
 
-          replaceOnce(
-            "import { Trash2, GripVertical, User, Settings } from 'lucide-react';",
-            "import { Pause, Play, RotateCcw, Timer, Trash2, GripVertical, User, Settings } from 'lucide-react';",
-            'lucide import'
-          );
+          if (!text.includes("Pause, Play, RotateCcw, Timer")) {
+            replaceOnce(
+              "import { Trash2, GripVertical, User, Settings } from 'lucide-react';",
+              "import { Pause, Play, RotateCcw, Timer, Trash2, GripVertical, User, Settings } from 'lucide-react';",
+              'lucide import'
+            );
+          }
 
           if (!text.includes('const REST_DURATION_SECONDS = 120;')) {
             const buildNotesMatch = text.match(/const buildWorkoutNotes = \(tags: string\[\], detail: string\) => \{[\s\S]*?\n\};/);
             if (!buildNotesMatch) throw new Error('Patch anchor not found: buildWorkoutNotes');
-            text = text.replace(buildNotesMatch[0], `${buildNotesMatch[0]}\n\nconst REST_DURATION_SECONDS = 120;\n\nconst formatRestTime = (seconds: number): string => {\n  const minutes = Math.floor(seconds / 60);\n  const remainingSeconds = seconds % 60;\n  return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;\n};`);
+            const timerHelpers = `${buildNotesMatch[0]}\n\nconst REST_DURATION_SECONDS = 120;\n\nconst formatRestTime = (seconds: number): string => {\n  const minutes = Math.floor(seconds / 60);\n  const remainingSeconds = seconds % 60;\n  return minutes + ':' + String(remainingSeconds).padStart(2, '0');\n};`;
+            text = text.replace(buildNotesMatch[0], timerHelpers);
           }
 
           if (!text.includes('const [restRemaining, setRestRemaining]')) {
@@ -71,9 +74,10 @@ jobs:
           );
 
           if (!text.includes('2分レスト')) {
+            const restPanel = `      <div className={[\n        'mb-6 rounded-lg border p-4',\n        restRemaining === 0\n          ? 'border-green-300 bg-green-50'\n          : restRunning\n            ? 'border-orange-300 bg-orange-50'\n            : 'border-gray-200 bg-gray-50'\n      ].join(' ')}>\n        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">\n          <div className="flex items-center gap-3">\n            <div className={[\n              'flex h-11 w-11 items-center justify-center rounded-full',\n              restRemaining === 0 ? 'bg-green-600 text-white' : 'bg-orange-500 text-white'\n            ].join(' ')}>\n              <Timer size={22} />\n            </div>\n            <div>\n              <div className="text-sm font-semibold text-gray-700">2分レスト</div>\n              <div className={[\n                'font-mono text-3xl font-bold',\n                restRemaining === 0 ? 'text-green-700' : 'text-gray-900'\n              ].join(' ')}>\n                {formatRestTime(restRemaining)}\n              </div>\n            </div>\n          </div>\n\n          <div className="flex gap-2">\n            <button\n              type="button"\n              onClick={toggleRestTimer}\n              className={[\n                'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white transition-colors sm:flex-none',\n                restRunning ? 'bg-orange-600 hover:bg-orange-700' : 'bg-green-600 hover:bg-green-700'\n              ].join(' ')}\n            >\n              {restRunning ? <Pause size={16} /> : <Play size={16} />}\n              {restRunning ? '一時停止' : restRemaining === 0 ? 'もう一度' : restRemaining === REST_DURATION_SECONDS ? '開始' : '再開'}\n            </button>\n            <button\n              type="button"\n              onClick={resetRestTimer}\n              className="flex flex-1 items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 sm:flex-none"\n            >\n              <RotateCcw size={16} />\n              リセット\n            </button>\n          </div>\n        </div>\n        {restRemaining === 0 && (\n          <div className="mt-3 rounded-md bg-green-100 px-3 py-2 text-sm font-semibold text-green-800">\n            レスト完了です。次のセットに進めます。\n          </div>\n        )}\n      </div>\n      \n`;
             replaceOnce(
               '      <div className="mb-8 p-4 bg-blue-50 rounded-lg border border-blue-200">',
-              `      <div className={\`mb-6 rounded-lg border p-4 ${\n        restRemaining === 0\n          ? 'border-green-300 bg-green-50'\n          : restRunning\n            ? 'border-orange-300 bg-orange-50'\n            : 'border-gray-200 bg-gray-50'\n      }\`}>\n        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">\n          <div className="flex items-center gap-3">\n            <div className={\`flex h-11 w-11 items-center justify-center rounded-full ${\n              restRemaining === 0 ? 'bg-green-600 text-white' : 'bg-orange-500 text-white'\n            }\`}>\n              <Timer size={22} />\n            </div>\n            <div>\n              <div className="text-sm font-semibold text-gray-700">2分レスト</div>\n              <div className={\`font-mono text-3xl font-bold ${\n                restRemaining === 0 ? 'text-green-700' : 'text-gray-900'\n              }\`}>\n                {formatRestTime(restRemaining)}\n              </div>\n            </div>\n          </div>\n\n          <div className="flex gap-2">\n            <button\n              type="button"\n              onClick={toggleRestTimer}\n              className={\`flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white transition-colors sm:flex-none ${\n                restRunning ? 'bg-orange-600 hover:bg-orange-700' : 'bg-green-600 hover:bg-green-700'\n              }\`}\n            >\n              {restRunning ? <Pause size={16} /> : <Play size={16} />}\n              {restRunning ? '一時停止' : restRemaining === 0 ? 'もう一度' : restRemaining === REST_DURATION_SECONDS ? '開始' : '再開'}\n            </button>\n            <button\n              type="button"\n              onClick={resetRestTimer}\n              className="flex flex-1 items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 sm:flex-none"\n            >\n              <RotateCcw size={16} />\n              リセット\n            </button>\n          </div>\n        </div>\n        {restRemaining === 0 && (\n          <div className="mt-3 rounded-md bg-green-100 px-3 py-2 text-sm font-semibold text-green-800">\n            レスト完了です。次のセットに進めます。\n          </div>\n        )}\n      </div>\n      \n      <div className="mb-8 p-4 bg-blue-50 rounded-lg border border-blue-200">`,
+              restPanel + '      <div className="mb-8 p-4 bg-blue-50 rounded-lg border border-blue-200">',
               'timer panel'
             );
           }
