@@ -3,7 +3,7 @@ import { Workout, MuscleGroup, Exercise, WorkoutFormData } from '../types';
 import { getJSTDateString } from '../utils/dateUtils';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNumberInput } from '../hooks/useNumberInput';
-import { Trash2, GripVertical, User, Settings } from 'lucide-react';
+import { Pause, Play, RotateCcw, Timer, Trash2, GripVertical, User, Settings } from 'lucide-react';
 import { XPostButton } from './XPostButton';
 import {
   DndContext,
@@ -41,6 +41,13 @@ const calculate1RM = (weight: number, reps: number): number => {
 //   return Math.max(...sets.map(w => calculate1RM(w.weight || 0, w.reps || 0)));
 // };
 
+const REST_DURATION_SECONDS = 120;
+
+const formatRestTime = (seconds: number): string => {
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
+};
 interface WorkoutListProps {
   workouts: Workout[];
   onEdit: (workout: Workout) => void;
@@ -707,6 +714,8 @@ const WorkoutList: React.FC<WorkoutListProps> = ({
   const [customExerciseName, setCustomExerciseName] = useState<string>('');
   // 種目全体の並び順（時刻の昇順・降順）
   const [exerciseSortOrder, setExerciseSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [restRemaining, setRestRemaining] = useState(REST_DURATION_SECONDS);
+  const [restRunning, setRestRunning] = useState(false);
 
   // ドラッグ&ドロップのセンサー設定
   const sensors = useSensors(
@@ -731,6 +740,39 @@ const WorkoutList: React.FC<WorkoutListProps> = ({
     !editData.muscle_group || ex.muscle_group === editData.muscle_group
   );
 
+  useEffect(() => {
+    if (!restRunning) return;
+
+    if (restRemaining <= 0) {
+      setRestRunning(false);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setRestRemaining(prev => Math.max(prev - 1, 0));
+    }, 1000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [restRunning, restRemaining]);
+
+  const startRestTimer = () => {
+    setRestRemaining(REST_DURATION_SECONDS);
+    setRestRunning(true);
+  };
+
+  const toggleRestTimer = () => {
+    if (restRemaining <= 0) {
+      startRestTimer();
+      return;
+    }
+
+    setRestRunning(prev => !prev);
+  };
+
+  const resetRestTimer = () => {
+    setRestRunning(false);
+    setRestRemaining(REST_DURATION_SECONDS);
+  };
   // muscleOverrideを追加
   const handleAddNew = () => {
     // 前回記録した部位を取得（最新の記録から）
@@ -772,6 +814,7 @@ const WorkoutList: React.FC<WorkoutListProps> = ({
       };
       
       await onSubmitWorkout(workoutData);
+      startRestTimer();
       setAddingNew(false);
       setEditData({
         id: '',
@@ -880,6 +923,7 @@ const WorkoutList: React.FC<WorkoutListProps> = ({
       };
       
       await onSubmitWorkout(workoutData);
+      startRestTimer();
       setAddingSet(null);
       setSetData({ weight: '', reps: '', notes: '' });
     } catch (error) {
@@ -1136,7 +1180,58 @@ const WorkoutList: React.FC<WorkoutListProps> = ({
         </div>
       </div>
       
-      <div className="mb-8 p-4 bg-blue-50 rounded-lg border border-blue-200">
+      <div className={`mb-6 rounded-lg border p-4 ${
+        restRemaining === 0
+          ? 'border-green-300 bg-green-50'
+          : restRunning
+            ? 'border-orange-300 bg-orange-50'
+            : 'border-gray-200 bg-gray-50'
+      }`}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className={`flex h-11 w-11 items-center justify-center rounded-full ${
+              restRemaining === 0 ? 'bg-green-600 text-white' : 'bg-orange-500 text-white'
+            }`}>
+              <Timer size={22} />
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-gray-700">2分レスト</div>
+              <div className={`font-mono text-3xl font-bold ${
+                restRemaining === 0 ? 'text-green-700' : 'text-gray-900'
+              }`}>
+                {formatRestTime(restRemaining)}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={toggleRestTimer}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white transition-colors sm:flex-none ${
+                restRunning ? 'bg-orange-600 hover:bg-orange-700' : 'bg-green-600 hover:bg-green-700'
+              }`}
+            >
+              {restRunning ? <Pause size={16} /> : <Play size={16} />}
+              {restRunning ? '一時停止' : restRemaining === 0 ? 'もう一度' : restRemaining === REST_DURATION_SECONDS ? '開始' : '再開'}
+            </button>
+            <button
+              type="button"
+              onClick={resetRestTimer}
+              className="flex flex-1 items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 sm:flex-none"
+            >
+              <RotateCcw size={16} />
+              リセット
+            </button>
+          </div>
+        </div>
+        {restRemaining === 0 && (
+          <div className="mt-3 rounded-md bg-green-100 px-3 py-2 text-sm font-semibold text-green-800">
+            レスト完了です。次のセットに進めます。
+          </div>
+        )}
+      </div>
+            <div className="mb-8 p-4 bg-blue-50 rounded-lg border border-blue-200">
         <span className="text-lg font-semibold text-gray-700">{t('stats.total.volume')}</span>
         <span className="ml-4 text-2xl font-bold text-blue-700">{totalVolume.toLocaleString()} kg</span>
       </div>
