@@ -1,0 +1,118 @@
+name: Codex Rest Timer Deploy
+
+on:
+  push:
+    paths:
+      - '.github/workflows/codex-rest-timer-deploy.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch_build_deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Patch 2-minute rest timer
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'client/src/components/WorkoutList.tsx';
+          let text = fs.readFileSync(path, 'utf8');
+
+          const replaceOnce = (needle, replacement, label) => {
+            if (!text.includes(needle)) {
+              throw new Error(`Patch anchor not found: ${label}`);
+            }
+            text = text.replace(needle, replacement);
+          };
+
+          replaceOnce(
+            "import { Trash2, GripVertical, User, Settings } from 'lucide-react';",
+            "import { Pause, Play, RotateCcw, Timer, Trash2, GripVertical, User, Settings } from 'lucide-react';",
+            'lucide import'
+          );
+
+          if (!text.includes('const REST_DURATION_SECONDS = 120;')) {
+            const buildNotesMatch = text.match(/const buildWorkoutNotes = \(tags: string\[\], detail: string\) => \{[\s\S]*?\n\};/);
+            if (!buildNotesMatch) throw new Error('Patch anchor not found: buildWorkoutNotes');
+            text = text.replace(buildNotesMatch[0], `${buildNotesMatch[0]}\n\nconst REST_DURATION_SECONDS = 120;\n\nconst formatRestTime = (seconds: number): string => {\n  const minutes = Math.floor(seconds / 60);\n  const remainingSeconds = seconds % 60;\n  return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;\n};`);
+          }
+
+          if (!text.includes('const [restRemaining, setRestRemaining]')) {
+            replaceOnce(
+              "  const [loadingPreviousExercise, setLoadingPreviousExercise] = useState(false);",
+              "  const [loadingPreviousExercise, setLoadingPreviousExercise] = useState(false);\n  const [restRemaining, setRestRemaining] = useState(REST_DURATION_SECONDS);\n  const [restRunning, setRestRunning] = useState(false);",
+              'rest state'
+            );
+          }
+
+          if (!text.includes('const startRestTimer = () => {')) {
+            replaceOnce(
+              "  // muscleOverrideを追加",
+              `  useEffect(() => {\n    if (!restRunning) return;\n\n    if (restRemaining <= 0) {\n      setRestRunning(false);\n      return;\n    }\n\n    const timeoutId = window.setTimeout(() => {\n      setRestRemaining(prev => Math.max(prev - 1, 0));\n    }, 1000);\n\n    return () => window.clearTimeout(timeoutId);\n  }, [restRunning, restRemaining]);\n\n  const startRestTimer = () => {\n    setRestRemaining(REST_DURATION_SECONDS);\n    setRestRunning(true);\n  };\n\n  const toggleRestTimer = () => {\n    if (restRemaining <= 0) {\n      startRestTimer();\n      return;\n    }\n\n    setRestRunning(prev => !prev);\n  };\n\n  const resetRestTimer = () => {\n    setRestRunning(false);\n    setRestRemaining(REST_DURATION_SECONDS);\n  };\n\n  // muscleOverrideを追加`,
+              'timer handlers'
+            );
+          }
+
+          text = text.replaceAll(
+            "      await onSubmitWorkout(workoutData);\n      setAddingNew(false);",
+            "      await onSubmitWorkout(workoutData);\n      startRestTimer();\n      setAddingNew(false);"
+          );
+          text = text.replaceAll(
+            "      await onSubmitWorkout(workoutData);\n      setAddingSet(null);",
+            "      await onSubmitWorkout(workoutData);\n      startRestTimer();\n      setAddingSet(null);"
+          );
+
+          if (!text.includes('2分レスト')) {
+            replaceOnce(
+              '      <div className="mb-8 p-4 bg-blue-50 rounded-lg border border-blue-200">',
+              `      <div className={\`mb-6 rounded-lg border p-4 ${\n        restRemaining === 0\n          ? 'border-green-300 bg-green-50'\n          : restRunning\n            ? 'border-orange-300 bg-orange-50'\n            : 'border-gray-200 bg-gray-50'\n      }\`}>\n        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">\n          <div className="flex items-center gap-3">\n            <div className={\`flex h-11 w-11 items-center justify-center rounded-full ${\n              restRemaining === 0 ? 'bg-green-600 text-white' : 'bg-orange-500 text-white'\n            }\`}>\n              <Timer size={22} />\n            </div>\n            <div>\n              <div className="text-sm font-semibold text-gray-700">2分レスト</div>\n              <div className={\`font-mono text-3xl font-bold ${\n                restRemaining === 0 ? 'text-green-700' : 'text-gray-900'\n              }\`}>\n                {formatRestTime(restRemaining)}\n              </div>\n            </div>\n          </div>\n\n          <div className="flex gap-2">\n            <button\n              type="button"\n              onClick={toggleRestTimer}\n              className={\`flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white transition-colors sm:flex-none ${\n                restRunning ? 'bg-orange-600 hover:bg-orange-700' : 'bg-green-600 hover:bg-green-700'\n              }\`}\n            >\n              {restRunning ? <Pause size={16} /> : <Play size={16} />}\n              {restRunning ? '一時停止' : restRemaining === 0 ? 'もう一度' : restRemaining === REST_DURATION_SECONDS ? '開始' : '再開'}\n            </button>\n            <button\n              type="button"\n              onClick={resetRestTimer}\n              className="flex flex-1 items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 sm:flex-none"\n            >\n              <RotateCcw size={16} />\n              リセット\n            </button>\n          </div>\n        </div>\n        {restRemaining === 0 && (\n          <div className="mt-3 rounded-md bg-green-100 px-3 py-2 text-sm font-semibold text-green-800">\n            レスト完了です。次のセットに進めます。\n          </div>\n        )}\n      </div>\n      \n      <div className="mb-8 p-4 bg-blue-50 rounded-lg border border-blue-200">`,
+              'timer panel'
+            );
+          }
+
+          fs.writeFileSync(path, text);
+          NODE
+
+      - name: Remove one-shot workflow
+        run: rm .github/workflows/codex-rest-timer-deploy.yml
+
+      - name: Commit patched source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add client/src/components/WorkoutList.tsx .github/workflows/codex-rest-timer-deploy.yml
+          git commit -m "Add 2-minute rest timer"
+          git push
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd client
+          npm ci
+
+      - name: Build app
+        run: |
+          cd client
+          npm run build
+
+      - name: Deploy to Firebase
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
+          projectId: my-training-8d8a9
+          channelId: live
