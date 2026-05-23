@@ -21,69 +21,156 @@ jobs:
       - name: Patch 2-minute rest timer
         shell: bash
         run: |
-          node <<'NODE'
-          const fs = require('fs');
-          const path = 'client/src/components/WorkoutList.tsx';
-          let text = fs.readFileSync(path, 'utf8');
+          python3 <<'PY'
+          from pathlib import Path
 
-          const replaceOnce = (needle, replacement, label) => {
-            if (!text.includes(needle)) {
-              throw new Error(`Patch anchor not found: ${label}`);
-            }
-            text = text.replace(needle, replacement);
-          };
+          path = Path('client/src/components/WorkoutList.tsx')
+          text = path.read_text(encoding='utf-8')
 
-          if (!text.includes("Pause, Play, RotateCcw, Timer")) {
-            replaceOnce(
-              "import { Trash2, GripVertical, User, Settings } from 'lucide-react';",
-              "import { Pause, Play, RotateCcw, Timer, Trash2, GripVertical, User, Settings } from 'lucide-react';",
-              'lucide import'
-            );
-          }
+          def replace_once(needle, replacement, label):
+              global text
+              if needle not in text:
+                  raise RuntimeError(f'Patch anchor not found: {label}')
+              text = text.replace(needle, replacement, 1)
 
-          if (!text.includes('const REST_DURATION_SECONDS = 120;')) {
-            const buildNotesMatch = text.match(/const buildWorkoutNotes = \(tags: string\[\], detail: string\) => \{[\s\S]*?\n\};/);
-            if (!buildNotesMatch) throw new Error('Patch anchor not found: buildWorkoutNotes');
-            const timerHelpers = `${buildNotesMatch[0]}\n\nconst REST_DURATION_SECONDS = 120;\n\nconst formatRestTime = (seconds: number): string => {\n  const minutes = Math.floor(seconds / 60);\n  const remainingSeconds = seconds % 60;\n  return minutes + ':' + String(remainingSeconds).padStart(2, '0');\n};`;
-            text = text.replace(buildNotesMatch[0], timerHelpers);
-          }
+          if 'Pause, Play, RotateCcw, Timer' not in text:
+              replace_once(
+                  "import { Trash2, GripVertical, User, Settings } from 'lucide-react';",
+                  "import { Pause, Play, RotateCcw, Timer, Trash2, GripVertical, User, Settings } from 'lucide-react';",
+                  'lucide import'
+              )
 
-          if (!text.includes('const [restRemaining, setRestRemaining]')) {
-            replaceOnce(
-              "  const [loadingPreviousExercise, setLoadingPreviousExercise] = useState(false);",
-              "  const [loadingPreviousExercise, setLoadingPreviousExercise] = useState(false);\n  const [restRemaining, setRestRemaining] = useState(REST_DURATION_SECONDS);\n  const [restRunning, setRestRunning] = useState(false);",
-              'rest state'
-            );
-          }
+          if 'const REST_DURATION_SECONDS = 120;' not in text:
+              helpers = '''const REST_DURATION_SECONDS = 120;
 
-          if (!text.includes('const startRestTimer = () => {')) {
-            replaceOnce(
-              "  // muscleOverrideを追加",
-              `  useEffect(() => {\n    if (!restRunning) return;\n\n    if (restRemaining <= 0) {\n      setRestRunning(false);\n      return;\n    }\n\n    const timeoutId = window.setTimeout(() => {\n      setRestRemaining(prev => Math.max(prev - 1, 0));\n    }, 1000);\n\n    return () => window.clearTimeout(timeoutId);\n  }, [restRunning, restRemaining]);\n\n  const startRestTimer = () => {\n    setRestRemaining(REST_DURATION_SECONDS);\n    setRestRunning(true);\n  };\n\n  const toggleRestTimer = () => {\n    if (restRemaining <= 0) {\n      startRestTimer();\n      return;\n    }\n\n    setRestRunning(prev => !prev);\n  };\n\n  const resetRestTimer = () => {\n    setRestRunning(false);\n    setRestRemaining(REST_DURATION_SECONDS);\n  };\n\n  // muscleOverrideを追加`,
-              'timer handlers'
-            );
-          }
+const formatRestTime = (seconds: number): string => {
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
+};
 
-          text = text.replaceAll(
-            "      await onSubmitWorkout(workoutData);\n      setAddingNew(false);",
-            "      await onSubmitWorkout(workoutData);\n      startRestTimer();\n      setAddingNew(false);"
-          );
-          text = text.replaceAll(
-            "      await onSubmitWorkout(workoutData);\n      setAddingSet(null);",
-            "      await onSubmitWorkout(workoutData);\n      startRestTimer();\n      setAddingSet(null);"
-          );
+'''
+              replace_once('interface WorkoutListProps {', helpers + 'interface WorkoutListProps {', 'helpers')
 
-          if (!text.includes('2分レスト')) {
-            const restPanel = `      <div className={[\n        'mb-6 rounded-lg border p-4',\n        restRemaining === 0\n          ? 'border-green-300 bg-green-50'\n          : restRunning\n            ? 'border-orange-300 bg-orange-50'\n            : 'border-gray-200 bg-gray-50'\n      ].join(' ')}>\n        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">\n          <div className="flex items-center gap-3">\n            <div className={[\n              'flex h-11 w-11 items-center justify-center rounded-full',\n              restRemaining === 0 ? 'bg-green-600 text-white' : 'bg-orange-500 text-white'\n            ].join(' ')}>\n              <Timer size={22} />\n            </div>\n            <div>\n              <div className="text-sm font-semibold text-gray-700">2分レスト</div>\n              <div className={[\n                'font-mono text-3xl font-bold',\n                restRemaining === 0 ? 'text-green-700' : 'text-gray-900'\n              ].join(' ')}>\n                {formatRestTime(restRemaining)}\n              </div>\n            </div>\n          </div>\n\n          <div className="flex gap-2">\n            <button\n              type="button"\n              onClick={toggleRestTimer}\n              className={[\n                'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white transition-colors sm:flex-none',\n                restRunning ? 'bg-orange-600 hover:bg-orange-700' : 'bg-green-600 hover:bg-green-700'\n              ].join(' ')}\n            >\n              {restRunning ? <Pause size={16} /> : <Play size={16} />}\n              {restRunning ? '一時停止' : restRemaining === 0 ? 'もう一度' : restRemaining === REST_DURATION_SECONDS ? '開始' : '再開'}\n            </button>\n            <button\n              type="button"\n              onClick={resetRestTimer}\n              className="flex flex-1 items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 sm:flex-none"\n            >\n              <RotateCcw size={16} />\n              リセット\n            </button>\n          </div>\n        </div>\n        {restRemaining === 0 && (\n          <div className="mt-3 rounded-md bg-green-100 px-3 py-2 text-sm font-semibold text-green-800">\n            レスト完了です。次のセットに進めます。\n          </div>\n        )}\n      </div>\n      \n`;
-            replaceOnce(
-              '      <div className="mb-8 p-4 bg-blue-50 rounded-lg border border-blue-200">',
-              restPanel + '      <div className="mb-8 p-4 bg-blue-50 rounded-lg border border-blue-200">',
-              'timer panel'
-            );
-          }
+          if 'const [restRemaining, setRestRemaining]' not in text:
+              replace_once(
+                  '  const [loadingPreviousExercise, setLoadingPreviousExercise] = useState(false);',
+                  '  const [loadingPreviousExercise, setLoadingPreviousExercise] = useState(false);\n  const [restRemaining, setRestRemaining] = useState(REST_DURATION_SECONDS);\n  const [restRunning, setRestRunning] = useState(false);',
+                  'rest state'
+              )
 
-          fs.writeFileSync(path, text);
-          NODE
+          if 'const startRestTimer = () => {' not in text:
+              handlers = '''  useEffect(() => {
+    if (!restRunning) return;
+
+    if (restRemaining <= 0) {
+      setRestRunning(false);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setRestRemaining(prev => Math.max(prev - 1, 0));
+    }, 1000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [restRunning, restRemaining]);
+
+  const startRestTimer = () => {
+    setRestRemaining(REST_DURATION_SECONDS);
+    setRestRunning(true);
+  };
+
+  const toggleRestTimer = () => {
+    if (restRemaining <= 0) {
+      startRestTimer();
+      return;
+    }
+
+    setRestRunning(prev => !prev);
+  };
+
+  const resetRestTimer = () => {
+    setRestRunning(false);
+    setRestRemaining(REST_DURATION_SECONDS);
+  };
+
+'''
+              if '  // muscleOverrideを追加' in text:
+                  replace_once('  // muscleOverrideを追加', handlers + '  // muscleOverrideを追加', 'timer handlers')
+              else:
+                  replace_once('  const handleAddNew = () => {', handlers + '  const handleAddNew = () => {', 'timer handlers')
+
+          text = text.replace(
+              '      await onSubmitWorkout(workoutData);\n      setAddingNew(false);',
+              '      await onSubmitWorkout(workoutData);\n      startRestTimer();\n      setAddingNew(false);'
+          )
+          text = text.replace(
+              '      await onSubmitWorkout(workoutData);\n      setAddingSet(null);',
+              '      await onSubmitWorkout(workoutData);\n      startRestTimer();\n      setAddingSet(null);'
+          )
+
+          if '2分レスト' not in text:
+              rest_panel = '''      <div className={`mb-6 rounded-lg border p-4 ${
+        restRemaining === 0
+          ? 'border-green-300 bg-green-50'
+          : restRunning
+            ? 'border-orange-300 bg-orange-50'
+            : 'border-gray-200 bg-gray-50'
+      }`}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className={`flex h-11 w-11 items-center justify-center rounded-full ${
+              restRemaining === 0 ? 'bg-green-600 text-white' : 'bg-orange-500 text-white'
+            }`}>
+              <Timer size={22} />
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-gray-700">2分レスト</div>
+              <div className={`font-mono text-3xl font-bold ${
+                restRemaining === 0 ? 'text-green-700' : 'text-gray-900'
+              }`}>
+                {formatRestTime(restRemaining)}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={toggleRestTimer}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white transition-colors sm:flex-none ${
+                restRunning ? 'bg-orange-600 hover:bg-orange-700' : 'bg-green-600 hover:bg-green-700'
+              }`}
+            >
+              {restRunning ? <Pause size={16} /> : <Play size={16} />}
+              {restRunning ? '一時停止' : restRemaining === 0 ? 'もう一度' : restRemaining === REST_DURATION_SECONDS ? '開始' : '再開'}
+            </button>
+            <button
+              type="button"
+              onClick={resetRestTimer}
+              className="flex flex-1 items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 sm:flex-none"
+            >
+              <RotateCcw size={16} />
+              リセット
+            </button>
+          </div>
+        </div>
+        {restRemaining === 0 && (
+          <div className="mt-3 rounded-md bg-green-100 px-3 py-2 text-sm font-semibold text-green-800">
+            レスト完了です。次のセットに進めます。
+          </div>
+        )}
+      </div>
+      
+'''
+              replace_once(
+                  '      <div className="mb-8 p-4 bg-blue-50 rounded-lg border border-blue-200">',
+                  rest_panel + '      <div className="mb-8 p-4 bg-blue-50 rounded-lg border border-blue-200">',
+                  'timer panel'
+              )
+
+          path.write_text(text, encoding='utf-8')
+          PY
 
       - name: Remove one-shot workflow
         run: rm .github/workflows/codex-rest-timer-deploy.yml
